@@ -61,6 +61,12 @@ Airflow se usa para una variedad de propósitos en empresas de todos los tamaño
 
 ---
 
+### Casos de uso prácticos
+
+*   **Prueba de funcionamiento**: Sigue este [caso práctico](cases/Readme.md) para crear y ejecutar un DAG sencillo con tareas Bash y Python. El ejercicio permite comprobar que la instalación de Airflow, el Scheduler, los Workers y la interfaz web funcionan correctamente.
+
+---
+
 ### Airflow vs. Otras Tecnologías
 
 Dado tu interés en el ecosistema de datos, es útil entender cómo se posiciona Airflow:
