@@ -60,6 +60,72 @@ Guía paso a paso para instalar **Apache Flink** en Linux (modo standalone para 
 
 ---
 
+## Instalación limpia con Distrobox
+
+Distrobox permite instalar Flink y PyFlink dentro de un contenedor integrado con la terminal del sistema, sin mezclar sus dependencias con la instalación de Python del host.
+
+### Crear el contenedor
+
+Estos comandos se ejecutan en el sistema anfitrión. Se utiliza Ubuntu 22.04 para disponer de Java 11 y Python 3.10:
+```bash
+sudo apt update
+sudo apt install podman distrobox -y
+distrobox create --name flink-dev --image ubuntu:22.04
+distrobox enter flink-dev
+```
+
+Los pasos restantes se ejecutan dentro de `flink-dev`.
+
+### **1. Instalar dependencias dentro del contenedor**
+```bash
+sudo apt update
+sudo apt install openjdk-11-jdk python3 python3-pip python3-venv wget -y
+
+export JAVA_HOME=/usr/lib/jvm/java-11-openjdk-amd64
+export FLINK_PYTHON_ENV="$HOME/flink-venv"
+
+python3 -m venv "$FLINK_PYTHON_ENV"
+"$FLINK_PYTHON_ENV/bin/python" -m pip install --upgrade pip setuptools wheel
+"$FLINK_PYTHON_ENV/bin/python" -m pip install apache-flink
+```
+
+Para conservar las variables después de salir y volver a entrar al contenedor:
+```bash
+cat >> ~/.bashrc <<'EOF'
+export JAVA_HOME=/usr/lib/jvm/java-11-openjdk-amd64
+export FLINK_HOME=$HOME/flink
+export FLINK_PYTHON_ENV=$HOME/flink-venv
+export PATH=$PATH:$FLINK_HOME/bin
+EOF
+source ~/.bashrc
+```
+
+Continuar con los pasos **2 a 8** de esta guía. En el paso 2, Flink quedará instalado en `$HOME/flink` en lugar de `/opt/flink`; por tanto, utiliza:
+```bash
+tar -xzf "$FLINK_PACKAGE"
+mv "flink-${FLINK_VERSION}" "$FLINK_HOME"
+```
+
+En el paso 8, ejecutar el job con el Python del entorno virtual:
+```bash
+$FLINK_HOME/bin/flink run \
+  -Dpython.client.executable="$FLINK_PYTHON_ENV/bin/python" \
+  -py wordcount.py
+```
+
+Para volver a entrar al entorno:
+```bash
+distrobox enter flink-dev
+```
+
+Para eliminarlo completamente, desde el sistema anfitrión:
+```bash
+distrobox stop flink-dev
+distrobox rm flink-dev
+```
+
+---
+
 ### **1. Prerrequisitos**
 
 #### **Instalar Java** (Flink requiere Java 8 u 11):
@@ -79,6 +145,17 @@ echo 'export JAVA_HOME=/usr/lib/jvm/java-11-openjdk-amd64' >> ~/.bashrc
 source ~/.bashrc
 ```
 
+#### **Instalar Python y PyFlink**:
+```bash
+sudo apt install python3 python3-pip python3-venv -y
+python3 --version
+
+# Crear un entorno aislado para PyFlink
+python3 -m venv "$HOME/flink-venv"
+"$HOME/flink-venv/bin/python" -m pip install --upgrade pip setuptools wheel
+"$HOME/flink-venv/bin/python" -m pip install apache-flink
+```
+
 ---
 
 ### **2. Descargar e instalar Apache Flink**
@@ -86,13 +163,27 @@ source ~/.bashrc
 #### **Descargar Flink**:
 ```bash
 cd ~
-wget https://downloads.apache.org/flink/flink-1.17.1/flink-1.17.1-bin-scala_2.12.tgz
+
+# Obtener la última versión binaria publicada por Apache Flink
+FLINK_VERSION="$(wget -qO- https://downloads.apache.org/flink/ \
+  | grep -oE 'href="flink-[0-9]+\.[0-9]+\.[0-9]+/"' \
+  | sed -E 's/.*flink-([0-9.]+)\/.*/\1/' \
+  | sort -V \
+  | tail -n 1)"
+
+test -n "$FLINK_VERSION" || {
+  echo "No se pudo determinar la última versión de Flink"
+  exit 1
+}
+
+FLINK_PACKAGE="flink-${FLINK_VERSION}-bin-scala_2.12.tgz"
+wget "https://downloads.apache.org/flink/flink-${FLINK_VERSION}/${FLINK_PACKAGE}"
 ```
 
 #### **Extraer y mover**:
 ```bash
-tar -xzf flink-1.17.1-bin-scala_2.12.tgz
-sudo mv flink-1.17.1 /opt/flink
+tar -xzf "$FLINK_PACKAGE"
+sudo mv "flink-${FLINK_VERSION}" /opt/flink
 ```
 
 #### **Configurar permisos**:
@@ -133,7 +224,7 @@ cd $FLINK_HOME
 nano conf/flink-conf.yaml
 ```
 
-Modificar o agrega:
+Modificar o agregar:
 ```yaml
 # Memoria para JobManager
 jobmanager.memory.process.size: 1024m
@@ -234,7 +325,9 @@ EOF
 
 #### **Ejecutar job Python**:
 ```bash
-$FLINK_HOME/bin/flink run -py wordcount.py
+$FLINK_HOME/bin/flink run \
+  -Dpython.client.executable="$HOME/flink-venv/bin/python" \
+  -py wordcount.py
 ```
 
 ---
