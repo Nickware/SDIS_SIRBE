@@ -330,6 +330,11 @@ $FLINK_HOME/bin/flink run \
   -py wordcount.py
 ```
 
+Para una prueba funcional, consultar
+[Apache_Flink/cases/Readme.md](cases/Readme.md). Incluye un flujo PyFlink con
+un saludo, una caída libre y una confirmación final condicionada al éxito de
+ambas ramas.
+
 ---
 
 ### **9. Modo sesión interactiva**
